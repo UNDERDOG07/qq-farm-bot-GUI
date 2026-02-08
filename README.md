@@ -1,7 +1,25 @@
 # QQ经典农场 挂机脚本
 
 基于 Node.js 的 QQ/微信 经典农场小程序自动化挂机脚本。通过分析小程序 WebSocket 通信协议（Protocol Buffers），实现全自动农场管理。
-本脚本基于ai制作，必然有一定的bug，遇到了建议自己克服一下，后续不一定会更新了。增加了GUI，打开py文件即可，目前不完善。。。
+本脚本基于ai制作，必然有一定的bug，遇到了建议自己克服一下，后续不一定会更新了。增加了GUI，简化了安装，目前不完善。。。
+
+（小萌新一枚，各位大佬多多指教😭）
+
+## 安装与使用
+  先运行install.bat进行环境部署，再运行start.bat输入code打开挂机。
+  
+  你需要从小程序中抓取 code。可以通过抓包工具（如 Fiddler、Charles、mitmproxy 等）获取 WebSocket 连接 URL 中的 `code` 参数。
+
+### 邀请码功能（微信环境）
+
+在项目根目录创建 `share.txt` 文件，每行一个邀请链接：
+
+```
+https://xxx?uid=123&openid=xxx&share_source=4&doc_id=2
+https://xxx?uid=456&openid=xxx&share_source=4&doc_id=2
+```
+
+启动时会自动处理这些邀请链接，申请添加好友。处理完成后文件会被清空。
 
 ## 功能特性
 
@@ -32,15 +50,9 @@
 - **PB 解码工具** — 内置 Protobuf 数据解码器，方便调试分析
 - **经验分析工具** — 分析作物经验效率，计算最优种植策略
 
-## 安装
 
-```bash
-git clone https://github.com/UNDERDOG07/qq-farm-bot-GUI
-cd qq-farm-bot-GUI
-npm install
-```
 
-### 依赖
+### 依赖（如果运行环境有问题参考一下）
 
 - [ws](https://www.npmjs.com/package/ws) — WebSocket 客户端
 - [protobufjs](https://www.npmjs.com/package/protobufjs) — Protocol Buffers 编解码
@@ -50,26 +62,6 @@ npm install
   可选：更漂亮的日志高亮
   pip install pygments
 
-## 使用
-
-### 获取登录 Code
-
-你需要从小程序中抓取 code。可以通过抓包工具（如 Fiddler、Charles、mitmproxy 等）获取 WebSocket 连接 URL 中的 `code` 参数。
-
-### 启动挂机
-
-输入code打开挂机
-
-### 邀请码功能（微信环境）
-
-在项目根目录创建 `share.txt` 文件，每行一个邀请链接：
-
-```
-https://xxx?uid=123&openid=xxx&share_source=4&doc_id=2
-https://xxx?uid=456&openid=xxx&share_source=4&doc_id=2
-```
-
-启动时会自动处理这些邀请链接，申请添加好友。处理完成后文件会被清空。
 
 
 ## 项目结构
@@ -107,6 +99,8 @@ https://xxx?uid=456&openid=xxx&share_source=4&doc_id=2
 │   └── analyze-exp-*.js   # 经验效率分析脚本
 ├── package.json
 ├── start.py               # 提供简易的GUI界面
+├── install.bat            # 提供环境部署
+├── start.bat              
 ```
 
 ## 运行示例

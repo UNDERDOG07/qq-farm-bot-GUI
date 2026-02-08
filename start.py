@@ -1,4 +1,4 @@
-# start.py - 最终完整版：后台不停止 + 数据持久化 + 重置累计按钮
+# start.py - 最终完整版（后台不停止 + 数据/日志持久化 + 自动刷新 + 居中布局）
 
 from nicegui import ui
 import subprocess
@@ -10,15 +10,29 @@ import re
 import json
 from pathlib import Path
 from collections import defaultdict
+import asyncio
+
+# ====================== 全局 UI 组件（避免 NameError） ======================
+status = None
+user_info_label = None
+gold_label = None
+level_label = None
+steal_label = None
+harvest_label = None
+exp_gain_label = None
+analysis_table = None
+log_container = None
 
 # ====================== 配置 ======================
 BOT_DIR = Path('.')  # start.py 放在 qq-farm-bot 根目录下
 NODE_CMD = 'node'
 MAIN_SCRIPT = 'client.js'
-PID_FILE = BOT_DIR / 'bot.pid'          # 后台进程 PID
-STATUS_FILE = BOT_DIR / 'bot_status.json'  # 累计数据持久化
+PID_FILE = BOT_DIR / 'bot.pid'
+STATUS_FILE = BOT_DIR / 'bot_status.json'
+LOG_FILE = BOT_DIR / 'bot_logs.txt'
+REFRESH_INTERVAL = 3  # 秒，数据自动刷新频率
 
-process = None  # 当前会话的进程引用（可能为空）
+process = None
 log_lines = []
 dashboard_data = {
     'gold': 0,
@@ -51,10 +65,12 @@ def load_status():
         try:
             data = json.loads(STATUS_FILE.read_text(encoding='utf-8'))
             dashboard_data.update(data)
-            print("[加载] 从 bot_status.json 恢复累计数据")
+            if 'start_time' in data and data['start_time']:
+                dashboard_data['start_time'] = float(data['start_time'])
+            print("[加载] 从 bot_status.json 恢复累计数据和运行时间")
             return True
-        except:
-            pass
+        except Exception as e:
+            print("[加载失败]", e)
     return False
 
 
@@ -68,6 +84,7 @@ def save_status():
         'harvest_today': dashboard_data['harvest_today'],
         'nickname': dashboard_data['nickname'],
         'qq_id': dashboard_data['qq_id'],
+        'start_time': dashboard_data['start_time'] if dashboard_data['start_time'] else None,
     }
     STATUS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
 
@@ -81,8 +98,27 @@ def reset_cumulative():
     })
     if STATUS_FILE.exists():
         STATUS_FILE.unlink()
-    ui.notify('累计数据已重置', type='positive')
+    ui.notify('累计数据已重置（后台挂机继续运行）', type='positive')
     refresh_ui()
+
+
+# ====================== 日志持久化 ======================
+def append_log(line: str):
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(line + '\n')
+
+
+def load_historical_logs():
+    global log_lines
+    log_lines = []
+    if LOG_FILE.exists():
+        try:
+            with open(LOG_FILE, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                log_lines = [line.strip() for line in lines[-500:] if line.strip()]
+            print(f"[加载] 从 bot_logs.txt 恢复 {len(log_lines)} 条历史日志")
+        except:
+            pass
 
 
 # ====================== 解析日志 ======================
@@ -92,6 +128,7 @@ def parse_line(line: str):
         return
 
     log_lines.append(line)
+    append_log(line)
 
     updated = False
 
@@ -142,18 +179,20 @@ def parse_line(line: str):
         updated = True
 
     if updated:
-        refresh_ui()
-        save_status()  # 每次更新都保存
+        save_status()
 
 
+# ====================== 刷新函数 ======================
 def refresh_ui():
-    if dashboard_data['start_time']:
+    is_running = dashboard_data['is_background_running'] or (process and process.poll() is None)
+
+    if is_running and dashboard_data['start_time']:
         sec = time.time() - dashboard_data['start_time']
         uptime_str = time.strftime('%H:%M:%S', time.gmtime(sec))
     else:
         uptime_str = '--:--:--'
 
-    status.text = f"{'运行中 ' + uptime_str if dashboard_data['is_background_running'] or (process and process.poll() is None) else '已停止'}"
+    status.text = f"{'运行中 ' + uptime_str if is_running else '已停止'}"
 
     gold_label.text = f"{dashboard_data['gold']:,}"
     level_label.text = f"Lv.{dashboard_data['level']}"
@@ -161,7 +200,7 @@ def refresh_ui():
     harvest_label.text = str(dashboard_data['harvest_today'])
     exp_gain_label.text = f"+{dashboard_data['exp_gain']:,}"
 
-    user_info_label.text = f"昵称: {dashboard_data['nickname']} | ID: {dashboard_data['qq_id']} | 等级: Lv.{dashboard_data['level']}"
+    user_info_label.text = f"昵称: {dashboard_data['nickname']} | QQ: {dashboard_data['qq_id']} | 等级: Lv.{dashboard_data['level']}"
 
 
 def refresh_analysis():
@@ -184,20 +223,26 @@ def refresh_analysis():
     analysis_table.rows = rows
 
 
+# ====================== 自动刷新（每3秒读取文件） ======================
+def read_latest_data():
+    load_status()
+    load_historical_logs()
+    refresh_ui()
+    refresh_analysis()
+
+
 # ====================== 启动/停止 ======================
 def start_bot():
     global process
 
-    # 先尝试加载持久化数据
     load_status()
+    load_historical_logs()
 
-    # 检查后台进程是否存活
     if PID_FILE.exists():
         try:
             pid = int(PID_FILE.read_text().strip())
-            os.kill(pid, 0)
             dashboard_data['is_background_running'] = True
-            ui.notify('挂机已在后台运行，已恢复累计数据', type='positive')
+            ui.notify('检测到后台挂机进程，已恢复累计数据和历史日志', type='positive')
             refresh_ui()
             return
         except:
@@ -270,10 +315,10 @@ def stop_bot(force=False):
                     os.killpg(os.getpgid(pid), signal.SIGKILL)
                 except:
                     pass
-            ui.notify('后台挂机已停止', type='positive')
             stopped = True
+            ui.notify('后台挂机已停止', type='positive')
         except Exception as e:
-            ui.notify(f'停止失败：{str(e)}', type='warning')
+            ui.notify(f'停止失败：{str(e)}（可能需要管理员权限）', type='warning')
         finally:
             if PID_FILE.exists():
                 PID_FILE.unlink()
@@ -283,14 +328,18 @@ def stop_bot(force=False):
 
     dashboard_data['start_time'] = None
     dashboard_data['is_background_running'] = False
+    if STATUS_FILE.exists():
+        STATUS_FILE.unlink()
+    if LOG_FILE.exists():
+        LOG_FILE.unlink()
+    log_lines.clear()
     refresh_ui()
 
 
 # ====================== UI ======================
 with ui.header(elevated=True).classes('bg-gradient-to-r from-indigo-950 to-purple-950 text-white justify-center'):
-    ui.label('QQ经典农场挂机控制台').classes('text-3xl font-bold tracking-wider')
+    ui.label('QQ农场经典挂机控制台').classes('text-3xl font-bold tracking-wider')
 
-# 登录输入区 - 居中
 with ui.column().classes('items-center gap-6 q-mt-lg q-mb-xl w-full max-w-4xl mx-auto px-4'):
     with ui.row().classes('justify-center items-center gap-6 flex-wrap w-full'):
         code_input = ui.input(
@@ -313,7 +362,6 @@ with ui.column().classes('items-center gap-6 q-mt-lg q-mb-xl w-full max-w-4xl mx
             step=30
         ).props('outlined dense rounded bordered').classes('w-36')
 
-# 按钮区 - 居中（包含重置累计按钮）
 with ui.row().classes('justify-center gap-6 q-mb-10 w-full max-w-4xl mx-auto px-4 flex-wrap'):
     ui.button('开始挂机', on_click=start_bot, color='green', icon='play_arrow')\
       .props('push unelevated rounded-lg padding="md lg"')\
@@ -331,7 +379,6 @@ with ui.row().classes('justify-center gap-6 q-mb-10 w-full max-w-4xl mx-auto px-
       .props('push unelevated rounded-lg padding="md lg"')\
       .classes('text-lg font-medium shadow-lg hover:scale-105 transition-transform min-w-40 bg-orange-700 text-white')
 
-# 状态 + 登录信息 - 居中
 with ui.column().classes('items-center q-mb-10 w-full max-w-4xl mx-auto px-4'):
     status = ui.label('状态：已停止').classes(
         'text-xl font-bold text-center tracking-wider '
@@ -389,7 +436,7 @@ with ui.tab_panels(tabs, value=tab_dashboard).classes('w-full bg-transparent'):
             def update_log():
                 log_container.clear()
                 with log_container:
-                    for line in log_lines[-500:]:
+                    for line in log_lines:
                         color = 'text-lime-300'
                         if any(kw in line for kw in ['成功', '收获', '种植', '浇水', '施肥']):
                             color = 'text-green-400 font-medium'
@@ -405,11 +452,13 @@ with ui.tab_panels(tabs, value=tab_dashboard).classes('w-full bg-transparent'):
 
 ui.label('提示：经验增加值基于 1白萝卜 = +2经验 计算，如作物变化请告知调整').classes('text-center text-sm opacity-60 q-mt-6 q-mb-4')
 
-ui.timer(1.5, refresh_ui)
-ui.timer(5.0, refresh_analysis)
-
-# 页面加载时尝试恢复数据
+# 页面加载时恢复
 load_status()
+load_historical_logs()
 refresh_ui()
+refresh_analysis()
+
+# 每3秒自动从文件读取刷新（解决不同步问题）
+ui.timer(3.0, read_latest_data)
 
 ui.run(title='QQ农场经典挂机控制台', dark=True, port=8080, reload=False)

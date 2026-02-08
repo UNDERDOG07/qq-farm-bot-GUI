@@ -6,7 +6,7 @@
 （小萌新一枚，各位大佬多多指教😭）
 
 ## 安装与使用
-  先运行install.bat进行环境部署，再运行start.bat输入code打开挂机。
+  先运行install.bat进行环境部署，再运行start.py输入code打开挂机。
   
   你需要从小程序中抓取 code。可以通过抓包工具（如 Fiddler、Charles、mitmproxy 等）获取 WebSocket 连接 URL 中的 `code` 参数。
 

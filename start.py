@@ -1,4 +1,4 @@
-# start.py - 完整版：标题改为“QQ农场经典挂机控制台”并居中，所有选项卡内容居中
+# start.py - 最终完整版：后台不停止 + 数据持久化 + 重置累计按钮
 
 from nicegui import ui
 import subprocess
@@ -15,8 +15,10 @@ from collections import defaultdict
 BOT_DIR = Path('.')  # start.py 放在 qq-farm-bot 根目录下
 NODE_CMD = 'node'
 MAIN_SCRIPT = 'client.js'
+PID_FILE = BOT_DIR / 'bot.pid'          # 后台进程 PID
+STATUS_FILE = BOT_DIR / 'bot_status.json'  # 累计数据持久化
 
-process = None
+process = None  # 当前会话的进程引用（可能为空）
 log_lines = []
 dashboard_data = {
     'gold': 0,
@@ -28,6 +30,7 @@ dashboard_data = {
     'nickname': '未知',
     'qq_id': '未知',
     'start_time': None,
+    'is_background_running': False,
 }
 stats = defaultdict(int)
 level_to_exp = {}
@@ -41,6 +44,46 @@ if role_json.exists():
             level_to_exp = {int(k): v.get('needExp', 100) for k, v in data.items()}
     except:
         pass
+
+# ====================== 数据持久化 ======================
+def load_status():
+    if STATUS_FILE.exists():
+        try:
+            data = json.loads(STATUS_FILE.read_text(encoding='utf-8'))
+            dashboard_data.update(data)
+            print("[加载] 从 bot_status.json 恢复累计数据")
+            return True
+        except:
+            pass
+    return False
+
+
+def save_status():
+    data = {
+        'gold': dashboard_data['gold'],
+        'gold_gain': dashboard_data['gold_gain'],
+        'level': dashboard_data['level'],
+        'exp_gain': dashboard_data['exp_gain'],
+        'steal_today': dashboard_data['steal_today'],
+        'harvest_today': dashboard_data['harvest_today'],
+        'nickname': dashboard_data['nickname'],
+        'qq_id': dashboard_data['qq_id'],
+    }
+    STATUS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+
+
+def reset_cumulative():
+    dashboard_data.update({
+        'gold_gain': 0,
+        'exp_gain': 0,
+        'steal_today': 0,
+        'harvest_today': 0,
+    })
+    if STATUS_FILE.exists():
+        STATUS_FILE.unlink()
+    ui.notify('累计数据已重置', type='positive')
+    refresh_ui()
+
 
 # ====================== 解析日志 ======================
 def parse_line(line: str):
@@ -100,6 +143,7 @@ def parse_line(line: str):
 
     if updated:
         refresh_ui()
+        save_status()  # 每次更新都保存
 
 
 def refresh_ui():
@@ -109,7 +153,7 @@ def refresh_ui():
     else:
         uptime_str = '--:--:--'
 
-    status.text = f"{'运行中 ' + uptime_str if process and process.poll() is None else '已停止'}"
+    status.text = f"{'运行中 ' + uptime_str if dashboard_data['is_background_running'] or (process and process.poll() is None) else '已停止'}"
 
     gold_label.text = f"{dashboard_data['gold']:,}"
     level_label.text = f"Lv.{dashboard_data['level']}"
@@ -117,7 +161,7 @@ def refresh_ui():
     harvest_label.text = str(dashboard_data['harvest_today'])
     exp_gain_label.text = f"+{dashboard_data['exp_gain']:,}"
 
-    user_info_label.text = f"昵称: {dashboard_data['nickname']} | QQ: {dashboard_data['qq_id']} | 等级: Lv.{dashboard_data['level']}"
+    user_info_label.text = f"昵称: {dashboard_data['nickname']} | ID: {dashboard_data['qq_id']} | 等级: Lv.{dashboard_data['level']}"
 
 
 def refresh_analysis():
@@ -143,9 +187,21 @@ def refresh_analysis():
 # ====================== 启动/停止 ======================
 def start_bot():
     global process
-    if process and process.poll() is None:
-        ui.notify('已有进程在运行', type='warning')
-        return
+
+    # 先尝试加载持久化数据
+    load_status()
+
+    # 检查后台进程是否存活
+    if PID_FILE.exists():
+        try:
+            pid = int(PID_FILE.read_text().strip())
+            os.kill(pid, 0)
+            dashboard_data['is_background_running'] = True
+            ui.notify('挂机已在后台运行，已恢复累计数据', type='positive')
+            refresh_ui()
+            return
+        except:
+            PID_FILE.unlink()
 
     code = code_input.value.strip()
     if not code:
@@ -167,24 +223,31 @@ def start_bot():
             text=True,
             encoding='utf-8',
             errors='replace',
-            bufsize=1
+            bufsize=1,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+            start_new_session=True
         )
+
+        PID_FILE.write_text(str(process.pid))
+        dashboard_data['is_background_running'] = True
 
         def reader():
             dashboard_data['start_time'] = time.time()
             stats.clear()
-            dashboard_data['exp_gain'] = 0
-            dashboard_data['gold_gain'] = 0
             while True:
                 line = process.stdout.readline()
                 if not line and process.poll() is not None:
                     break
                 if line.strip():
                     parse_line(line)
-            ui.notify('进程已退出', type='info')
+            if PID_FILE.exists():
+                PID_FILE.unlink()
+            dashboard_data['is_background_running'] = False
+            ui.notify('后台挂机进程已退出', type='info')
 
         threading.Thread(target=reader, daemon=True).start()
         refresh_ui()
+        ui.notify('挂机已启动（浏览器关闭也不会停止）', type='positive')
 
     except Exception as e:
         ui.notify(f'启动失败：{str(e)}', type='negative')
@@ -192,26 +255,38 @@ def start_bot():
 
 def stop_bot(force=False):
     global process
-    if not process or process.poll() is not None:
-        ui.notify('没有运行中的进程', type='info')
-        return
 
-    try:
-        sig = signal.CTRL_C_EVENT if os.name == 'nt' else signal.SIGINT
-        process.send_signal(sig)
-        time.sleep(1.8 if force else 0.8)
-        if process.poll() is None:
-            process.kill()
-    except:
-        pass
+    stopped = False
+
+    if PID_FILE.exists():
+        try:
+            pid = int(PID_FILE.read_text().strip())
+            if os.name == 'nt':
+                os.system(f'taskkill /PID {pid} /F /T')
+            else:
+                os.killpg(os.getpgid(pid), signal.SIGTERM)
+                time.sleep(1)
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGKILL)
+                except:
+                    pass
+            ui.notify('后台挂机已停止', type='positive')
+            stopped = True
+        except Exception as e:
+            ui.notify(f'停止失败：{str(e)}', type='warning')
+        finally:
+            if PID_FILE.exists():
+                PID_FILE.unlink()
+
+    if not stopped:
+        ui.notify('没有检测到后台挂机进程', type='info')
 
     dashboard_data['start_time'] = None
+    dashboard_data['is_background_running'] = False
     refresh_ui()
-    ui.notify('已停止' if not force else '强制终止', type='warning')
 
 
 # ====================== UI ======================
-# 标题 - 居中 + 更大字体
 with ui.header(elevated=True).classes('bg-gradient-to-r from-indigo-950 to-purple-950 text-white justify-center'):
     ui.label('QQ经典农场挂机控制台').classes('text-3xl font-bold tracking-wider')
 
@@ -238,7 +313,7 @@ with ui.column().classes('items-center gap-6 q-mt-lg q-mb-xl w-full max-w-4xl mx
             step=30
         ).props('outlined dense rounded bordered').classes('w-36')
 
-# 开始/停止按钮区 - 居中
+# 按钮区 - 居中（包含重置累计按钮）
 with ui.row().classes('justify-center gap-6 q-mb-10 w-full max-w-4xl mx-auto px-4 flex-wrap'):
     ui.button('开始挂机', on_click=start_bot, color='green', icon='play_arrow')\
       .props('push unelevated rounded-lg padding="md lg"')\
@@ -252,6 +327,10 @@ with ui.row().classes('justify-center gap-6 q-mb-10 w-full max-w-4xl mx-auto px-
       .props('flat rounded-lg padding="md lg"')\
       .classes('text-lg min-w-40')
 
+    ui.button('重置累计数据', on_click=reset_cumulative, color='orange', icon='refresh')\
+      .props('push unelevated rounded-lg padding="md lg"')\
+      .classes('text-lg font-medium shadow-lg hover:scale-105 transition-transform min-w-40 bg-orange-700 text-white')
+
 # 状态 + 登录信息 - 居中
 with ui.column().classes('items-center q-mb-10 w-full max-w-4xl mx-auto px-4'):
     status = ui.label('状态：已停止').classes(
@@ -259,12 +338,11 @@ with ui.column().classes('items-center q-mb-10 w-full max-w-4xl mx-auto px-4'):
         'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400'
     )
 
-    user_info_label = ui.label('昵称: 未登录 | id: 未登录 | 等级: 未登录').classes(
+    user_info_label = ui.label('昵称: 未登录 | QQ: 未登录 | 等级: 未登录').classes(
         'text-lg text-center text-cyan-300'
     )
 
-# 选项卡区 - 标签居中，内容居中
-with ui.tabs().classes('w-full max-w-4xl mx-auto justify-center') as tabs:
+with ui.tabs() as tabs:
     tab_dashboard = ui.tab('仪表盘')
     tab_analysis  = ui.tab('收益分析')
     tab_log       = ui.tab('控制台日志')
@@ -329,5 +407,9 @@ ui.label('提示：经验增加值基于 1白萝卜 = +2经验 计算，如作�
 
 ui.timer(1.5, refresh_ui)
 ui.timer(5.0, refresh_analysis)
+
+# 页面加载时尝试恢复数据
+load_status()
+refresh_ui()
 
 ui.run(title='QQ农场经典挂机控制台', dark=True, port=8080, reload=False)

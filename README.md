@@ -1,12 +1,12 @@
 # QQ经典农场 挂机脚本
 
 基于 Node.js 的 QQ/微信 经典农场小程序自动化挂机脚本。通过分析小程序 WebSocket 通信协议（Protocol Buffers），实现全自动农场管理。
-本脚本基于ai制作，必然有一定的bug，遇到了建议自己克服一下，后续不一定会更新了。增加了GUI，简化了安装，目前不完善。。。
+本脚本基于ai制作，必然有一定的bug，遇到了建议自己克服一下，后续不一定会更新了。增加了GUI，简化了安装，目前不完善。。。有一些bug
 
 （小萌新一枚，各位大佬多多指教😭）
 
 ## 安装与使用
-  先运行install.bat进行环境部署，再运行start.py输入code打开挂机。
+  先运行install.bat进行环境部署，再运行start.bat输入code打开挂机。
   
   你需要从小程序中抓取 code。可以通过抓包工具（如 Fiddler、Charles、mitmproxy 等）获取 WebSocket 连接 URL 中的 `code` 参数。
 

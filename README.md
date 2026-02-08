@@ -1,7 +1,7 @@
 # QQ经典农场 挂机脚本
 
 基于 Node.js 的 QQ/微信 经典农场小程序自动化挂机脚本。通过分析小程序 WebSocket 通信协议（Protocol Buffers），实现全自动农场管理。
-本脚本基于ai制作，必然有一定的bug，遇到了建议自己克服一下，后续不一定会更新了
+本脚本基于ai制作，必然有一定的bug，遇到了建议自己克服一下，后续不一定会更新了。增加了GUI，打开py文件即可，目前不完善。。。
 
 ## 功能特性
 
@@ -35,8 +35,8 @@
 ## 安装
 
 ```bash
-git clone https://github.com/your-repo/qq-farm-bot.git
-cd qq-farm-bot
+git clone https://github.com/UNDERDOG07/qq-farm-bot-GUI
+cd qq-farm-bot-GUI
 npm install
 ```
 
@@ -45,6 +45,10 @@ npm install
 - [ws](https://www.npmjs.com/package/ws) — WebSocket 客户端
 - [protobufjs](https://www.npmjs.com/package/protobufjs) — Protocol Buffers 编解码
 - [long](https://www.npmjs.com/package/long) — 64 位整数支持
+- python 相关
+  pip install nicegui
+  可选：更漂亮的日志高亮
+  pip install pygments
 
 ## 使用
 
@@ -54,31 +58,7 @@ npm install
 
 ### 启动挂机
 
-```bash
-# QQ小程序 (默认)
-node client.js --code <你的登录code>
-
-# 微信小程序
-node client.js --code <你的登录code> --wx
-```
-
-### 自定义巡查间隔
-
-```bash
-# 农场巡查间隔 5 秒，好友巡查间隔 2 秒
-node client.js --code <code> --interval 5 --friend-interval 2
-```
-
-### 参数说明
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--code` | 小程序登录凭证（**必需**） | — |
-| `--wx` | 使用微信登录 | QQ 小程序 |
-| `--interval` | 自己农场巡查间隔（秒） | 2 |
-| `--friend-interval` | 好友巡查间隔（秒） | 1 |
-| `--verify` | 验证 proto 定义是否正确 | — |
-| `--decode` | 进入 PB 数据解码模式 | — |
+输入code打开挂机
 
 ### 邀请码功能（微信环境）
 
@@ -91,29 +71,6 @@ https://xxx?uid=456&openid=xxx&share_source=4&doc_id=2
 
 启动时会自动处理这些邀请链接，申请添加好友。处理完成后文件会被清空。
 
-### PB 解码工具
-
-内置 Protobuf 数据解码器，支持自动推断消息类型：
-
-```bash
-# 解码 base64 格式的 gatepb.Message
-node client.js --decode CigKGWdhbWVwYi... --gate
-
-# 解码 hex 格式，指定消息类型
-node client.js --decode 0a1c0a19... --hex --type gatepb.Message
-
-# 查看解码工具详细帮助
-node client.js --decode
-```
-
-### 经验分析工具
-
-分析作物经验效率，帮助选择最优种植策略：
-
-```bash
-# 分析24小时内最大经验（需要先配置可购买种子范围）
-node tools/analyze-exp-24h-lv24.js
-```
 
 ## 项目结构
 
@@ -148,35 +105,12 @@ node tools/analyze-exp-24h-lv24.js
 │   └── Plant.json         # 植物数据（名称/生长时间/经验等）
 ├── tools/                 # 辅助工具
 │   └── analyze-exp-*.js   # 经验效率分析脚本
-└── package.json
+├── package.json
+├── start.py               # 提供简易的GUI界面
 ```
 
 ## 运行示例
-
-```
-QQ | 我的农场 | Lv24 125/500 | 金币:88888
-────────────────────────────────────────────
-
-========== 登录成功 ==========
-  GID:    1234567890
-  昵称:   我的农场
-  等级:   24
-  金币:   88888
-  时间:   2026/2/7 16:00:00
-===============================
-
-[16:00:02] [农场] [收:15 长:0] → 收获15/种植15
-[16:00:03] [施肥] 已为 15/15 块地施肥
-[16:00:05] [农场] [草:2 虫:1 水:3 长:15] → 除草2/除虫1/浇水3
-[16:00:08] [好友] 小明: 偷6(白萝卜)
-[16:00:10] [好友] 巡查 5 人 → 偷12/除草3/浇水2
-[16:00:15] [仓库] 出售 2 种果实共 300 个，获得 600 金币
-[16:00:20] [任务] 领取: 收获5次 → 金币500/经验100
-
-# 微信同玩好友申请自动同意：
-[16:05:30] [申请] 收到 1 个好友申请: 小绿
-[16:05:31] [申请] 已同意 1 人: 小绿
-```
+  
 
 ## 配置说明
 
@@ -210,8 +144,6 @@ const ENABLE_PUT_BAD_THINGS = false;  // 是否启用放虫放草功能
 ## 免责声明
 
 本项目仅供学习和研究用途。使用本脚本可能违反游戏服务条款，由此产生的一切后果由使用者自行承担。
-
-![Star History Chart](https://api.star-history.com/svg?repos=linguo2625469/qq-farm-bot&type=Date&theme=light)
 
 ## License
 

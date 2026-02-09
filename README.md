@@ -142,3 +142,13 @@ const ENABLE_PUT_BAD_THINGS = false;  // 是否启用放虫放草功能
 ## License
 
 MIT
+
+## Star History
+
+<a href="https://www.star-history.com/#UNDERDOG07/qq-farm-bot-GUI&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=UNDERDOG07/qq-farm-bot-GUI&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=UNDERDOG07/qq-farm-bot-GUI&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=UNDERDOG07/qq-farm-bot-GUI&type=date&legend=top-left" />
+ </picture>
+</a>

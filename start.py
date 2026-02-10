@@ -1,4 +1,4 @@
-# start.py - 最终完整版（后台不停止 + 数据/日志持久化 + 自动刷新 + 居中布局）
+# start.py
 
 from nicegui import ui
 import subprocess
@@ -351,14 +351,14 @@ with ui.column().classes('items-center gap-6 q-mt-lg q-mb-xl w-full max-w-4xl mx
         interval_input = ui.number(
             label='自家间隔(秒)',
             value=30,
-            min=10,
+            min=5,
             step=5
         ).props('outlined dense rounded bordered').classes('w-36')
 
         friend_interval_input = ui.number(
             label='好友间隔(秒)',
-            value=180,
-            min=60,
+            value=60,
+            min=5,
             step=30
         ).props('outlined dense rounded bordered').classes('w-36')
 
@@ -460,5 +460,6 @@ refresh_analysis()
 
 # 每3秒自动从文件读取刷新（解决不同步问题）
 ui.timer(3.0, read_latest_data)
+
 
 ui.run(title='QQ农场经典挂机控制台', dark=True, port=8080, reload=False)

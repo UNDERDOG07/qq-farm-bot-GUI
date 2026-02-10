@@ -359,7 +359,7 @@ with ui.column().classes('items-center gap-6 q-mt-lg q-mb-xl w-full max-w-4xl mx
             label='好友间隔(秒)',
             value=60,
             min=5,
-            step=30
+            step=5
         ).props('outlined dense rounded bordered').classes('w-36')
 
 with ui.row().classes('justify-center gap-6 q-mb-10 w-full max-w-4xl mx-auto px-4 flex-wrap'):
@@ -463,3 +463,4 @@ ui.timer(3.0, read_latest_data)
 
 
 ui.run(title='QQ农场经典挂机控制台', dark=True, port=8080, reload=False)
+

@@ -12,12 +12,11 @@ from pathlib import Path
 from collections import defaultdict
 import asyncio
 
-# ====================== 全局 UI 组件（避免 NameError） ======================
+# ====================== 全局 UI 组件 ======================
 status = None
 user_info_label = None
 gold_label = None
 level_label = None
-steal_label = None
 harvest_label = None
 exp_gain_label = None
 analysis_table = None
@@ -39,7 +38,6 @@ dashboard_data = {
     'gold_gain': 0,
     'level': 1,
     'exp_gain': 0,
-    'steal_today': 0,
     'harvest_today': 0,
     'nickname': '未知',
     'qq_id': '未知',
@@ -80,7 +78,6 @@ def save_status():
         'gold_gain': dashboard_data['gold_gain'],
         'level': dashboard_data['level'],
         'exp_gain': dashboard_data['exp_gain'],
-        'steal_today': dashboard_data['steal_today'],
         'harvest_today': dashboard_data['harvest_today'],
         'nickname': dashboard_data['nickname'],
         'qq_id': dashboard_data['qq_id'],
@@ -93,7 +90,6 @@ def reset_cumulative():
     dashboard_data.update({
         'gold_gain': 0,
         'exp_gain': 0,
-        'steal_today': 0,
         'harvest_today': 0,
     })
     if STATUS_FILE.exists():
@@ -121,7 +117,7 @@ def load_historical_logs():
             pass
 
 
-# ====================== 解析日志 ======================
+# ====================== 解析日志（只保留收获相关） ======================
 def parse_line(line: str):
     line = line.strip()
     if not line:
@@ -164,17 +160,11 @@ def parse_line(line: str):
         dashboard_data['gold_gain'] -= cost
         updated = True
 
-    if m := re.search(r'偷(\d+)', line):
-        count = int(m.group(1))
-        dashboard_data['steal_today'] += count
-        stats['steal_count'] += count
-        updated = True
-
     if m := re.search(r'(?:收获|收):?\s*(\d+)', line):
         count = int(m.group(1))
         dashboard_data['harvest_today'] += count
         stats['harvest_count'] += count
-        exp_add = count * 2
+        exp_add = count * 2  # 假设1块成熟作物+2经验
         dashboard_data['exp_gain'] += exp_add
         updated = True
 
@@ -196,7 +186,6 @@ def refresh_ui():
 
     gold_label.text = f"{dashboard_data['gold']:,}"
     level_label.text = f"Lv.{dashboard_data['level']}"
-    steal_label.text = str(dashboard_data['steal_today'])
     harvest_label.text = str(dashboard_data['harvest_today'])
     exp_gain_label.text = f"+{dashboard_data['exp_gain']:,}"
 
@@ -215,7 +204,6 @@ def refresh_analysis():
         {'指标': '运行时间',       '值': time.strftime('%H:%M:%S', time.gmtime(sec)),     '单位/说明': ''},
         {'指标': '净金币变化',     '值': f"{dashboard_data['gold_gain']:,}",             '单位/说明': '（收入-支出）'},
         {'指标': '平均每小时金币', '值': f"{int(dashboard_data['gold_gain'] / hours):,}",'单位/说明': '金币/h'},
-        {'指标': '累计偷菜次数',   '值': stats['steal_count'],                           '单位/说明': '次'},
         {'指标': '累计收获次数',   '值': stats['harvest_count'],                        '单位/说明': '次'},
         {'指标': '累计经验增加',   '值': f"{dashboard_data['exp_gain']:,}",             '单位/说明': '经验'},
         {'指标': '平均每小时经验', '值': f"{int(dashboard_data['exp_gain'] / hours):,}", '单位/说明': '经验/h'},
@@ -223,7 +211,7 @@ def refresh_analysis():
     analysis_table.rows = rows
 
 
-# ====================== 自动刷新（每3秒读取文件） ======================
+# ====================== 自动刷新 ======================
 def read_latest_data():
     load_status()
     load_historical_logs()
@@ -256,8 +244,6 @@ def start_bot():
     cmd = [NODE_CMD, str(BOT_DIR / MAIN_SCRIPT), '--code', code]
     if interval_input.value:
         cmd += ['--interval', str(int(interval_input.value))]
-    if friend_interval_input.value:
-        cmd += ['--friend-interval', str(int(friend_interval_input.value))]
 
     try:
         process = subprocess.Popen(
@@ -336,9 +322,9 @@ def stop_bot(force=False):
     refresh_ui()
 
 
-# ====================== UI ======================
+# ====================== UI 布局 ======================
 with ui.header(elevated=True).classes('bg-gradient-to-r from-indigo-950 to-purple-950 text-white justify-center'):
-    ui.label('QQ农场经典挂机控制台').classes('text-3xl font-bold tracking-wider')
+    ui.label('QQ农场经典挂机控制台（自农场专用）').classes('text-3xl font-bold tracking-wider')
 
 with ui.column().classes('items-center gap-6 q-mt-lg q-mb-xl w-full max-w-4xl mx-auto px-4'):
     with ui.row().classes('justify-center items-center gap-6 flex-wrap w-full'):
@@ -349,16 +335,9 @@ with ui.column().classes('items-center gap-6 q-mt-lg q-mb-xl w-full max-w-4xl mx
         ).props('outlined dense clearable rounded bordered').classes('min-w-72 flex-1 max-w-xs')
 
         interval_input = ui.number(
-            label='自家间隔(秒)',
+            label='自家巡查间隔(秒)',
             value=30,
-            min=5,
-            step=5
-        ).props('outlined dense rounded bordered').classes('w-36')
-
-        friend_interval_input = ui.number(
-            label='好友间隔(秒)',
-            value=60,
-            min=5,
+            min=10,
             step=5
         ).props('outlined dense rounded bordered').classes('w-36')
 
@@ -405,10 +384,6 @@ with ui.tab_panels(tabs, value=tab_dashboard).classes('w-full bg-transparent'):
                 ui.label('当前等级').classes('text-base opacity-80 tracking-wide')
                 level_label = ui.label('Lv.1').classes('text-5xl font-black text-purple-300 mt-2')
 
-            with ui.card().classes('bg-gradient-to-br from-green-950/80 to-emerald-950/60 backdrop-blur-md border border-green-800/40 rounded-2xl shadow-2xl w-72 hover:shadow-green-500/30 transition-shadow text-center'):
-                ui.label('今日偷菜').classes('text-base opacity-80 tracking-wide')
-                steal_label = ui.label('0').classes('text-5xl font-black text-green-300 mt-2')
-
             with ui.card().classes('bg-gradient-to-br from-teal-950/80 to-cyan-950/60 backdrop-blur-md border border-teal-800/40 rounded-2xl shadow-2xl w-72 hover:shadow-teal-500/30 transition-shadow text-center'):
                 ui.label('今日收获').classes('text-base opacity-80 tracking-wide')
                 harvest_label = ui.label('0').classes('text-5xl font-black text-teal-300 mt-2')
@@ -440,8 +415,6 @@ with ui.tab_panels(tabs, value=tab_dashboard).classes('w-full bg-transparent'):
                         color = 'text-lime-300'
                         if any(kw in line for kw in ['成功', '收获', '种植', '浇水', '施肥']):
                             color = 'text-green-400 font-medium'
-                        elif any(kw in line for kw in ['偷', '偷到', '偷菜']):
-                            color = 'text-violet-400 font-medium'
                         elif any(kw in line for kw in ['失败', '错误', '断开', '异常']):
                             color = 'text-red-400 font-medium'
                         elif '购买' in line or '花费' in line:
@@ -458,9 +431,7 @@ load_historical_logs()
 refresh_ui()
 refresh_analysis()
 
-# 每3秒自动从文件读取刷新（解决不同步问题）
+# 每3秒自动从文件读取刷新
 ui.timer(3.0, read_latest_data)
 
-
-ui.run(title='QQ农场经典挂机控制台', dark=True, port=8080, reload=False)
-
+ui.run(title='QQ农场经典挂机控制台（自农场专用）', dark=True, port=8080, reload=False)

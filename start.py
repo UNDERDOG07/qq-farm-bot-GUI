@@ -337,7 +337,7 @@ with ui.column().classes('items-center gap-6 q-mt-lg q-mb-xl w-full max-w-4xl mx
         interval_input = ui.number(
             label='自家巡查间隔(秒)',
             value=30,
-            min=10,
+            min=1,
             step=5
         ).props('outlined dense rounded bordered').classes('w-36')
 
@@ -435,3 +435,4 @@ refresh_analysis()
 ui.timer(3.0, read_latest_data)
 
 ui.run(title='QQ农场经典挂机控制台（自农场专用）', dark=True, port=8080, reload=False)
+

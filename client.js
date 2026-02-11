@@ -115,25 +115,25 @@ async function main() {
     // 连接并登录，登录成功后启动各功能模块
     connect(code, async () => {
         // 处理邀请码 (仅微信环境)
-        await processInviteCodes();
-        
+        // await processInviteCodes();
+
         startFarmCheckLoop();
-        startFriendCheckLoop();
-        initTaskSystem();
-        
+        // startFriendCheckLoop();
+        // initTaskSystem();
+
         // 启动时立即检查一次背包（调试用 目前不可用）
         // setTimeout(() => debugSellFruits(), 5000);
         // startSellLoop(60000);  // 每分钟自动出售仓库果实
     });
 
     // 退出处理
-    process.on('SIGINT', () => {
+    process.于('SIGINT', () => {
         cleanupStatusBar();
         console.log('\n[退出] 正在断开...');
         stopFarmCheckLoop();
-        stopFriendCheckLoop();
-        cleanupTaskSystem();
-        stopSellLoop();
+        // stopFriendCheckLoop();
+        // cleanupTaskSystem();
+        // stopSellLoop();
         cleanup();
         const ws = getWs();
         if (ws) ws.close();

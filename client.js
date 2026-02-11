@@ -127,7 +127,7 @@ async function main() {
     });
 
     // 退出处理
-    process.('SIGINT', () => {
+    process.on('SIGINT', () => {
         cleanupStatusBar();
         console.log('\n[退出] 正在断开...');
         stopFarmCheckLoop();

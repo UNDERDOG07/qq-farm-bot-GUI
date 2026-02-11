@@ -116,11 +116,11 @@ async function main() {
     connect(code, async () => {
         // 处理邀请码 (仅微信环境)
         // await processInviteCodes();
-
+        
         startFarmCheckLoop();
         // startFriendCheckLoop();
         // initTaskSystem();
-
+        
         // 启动时立即检查一次背包（调试用 目前不可用）
         // setTimeout(() => debugSellFruits(), 5000);
         // startSellLoop(60000);  // 每分钟自动出售仓库果实
